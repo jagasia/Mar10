@@ -1,0 +1,454 @@
+UPDATE Associate SET firstName=?, lastName=?, dateOfJoining=?, gender=?, picture=? WHERE associateId=?
+
+
+ALL VALUES MUST BE GIVEN.
+If i want to update only the last name, why should i give other details?
+
+only we dont want the user to take the burden to enter these info unnecessarily
+
+Whichever details not going to be changed, why should he enter again?
+
+once the user enters the associateId, we can find the other information from db
+	we can use read(id) method to get other details
+
+-----------------------
+Working with stored procedures:
+	
+
+		Scanner sc=new Scanner(System.in);
+		System.out.println("Enter the employee id:");
+		int employeeId=sc.nextInt();
+		
+		ResourceBundle rb = ResourceBundle.getBundle("db");
+		String driver, url, username, password;
+		driver=rb.getString("driver");
+		url=rb.getString("url");
+		username=rb.getString("username");
+		password=rb.getString("password");
+		
+		Class.forName(driver);
+		Connection con = DriverManager.getConnection(url,username,password);
+		CallableStatement st = con.prepareCall("{call PRCFIND(?,?,?,?)}");
+		st.setInt(1, employeeId);
+		//we are not supplying 2,3,4 th parameters because they are output parameters
+		st.registerOutParameter(2, java.sql.Types.VARCHAR);
+		st.registerOutParameter(3, java.sql.Types.VARCHAR);
+		st.registerOutParameter(4, java.sql.Types.NUMERIC);
+		st.execute();
+		//how to get the output values from procedure??? here we go
+		String fname, lname;
+		int salary;
+		fname=st.getString(2);
+		lname=st.getString(3);
+		salary=st.getInt(4);
+		System.out.println(fname);
+		System.out.println(lname);
+		System.out.println(salary);
+
+
+Task:
+	create a procedure that accepts acnumber as input and produces 
+		total withdraw amount
+		total deposit amount
+		total balance amount
+	as output
+
+	call this procedure from java and display the output.
+
+
+
+CREATE OR REPLACE PROCEDURE PRCTASK1
+(ANO IN VARCHAR2, W OUT NUMBER, D OUT NUMBER, B OUT NUMBER)
+AS
+    ob int;
+BEGIN
+    SELECT SUM(TRANSACTION_AMOUNT) INTO W FROM TRANDETAILS
+        WHERE TRANSACTION_TYPE='Withdrawal'
+        AND ACNUMBER=ANO
+        GROUP BY ACNUMBER;
+    SELECT SUM(TRANSACTION_AMOUNT) INTO D FROM TRANDETAILS
+        WHERE TRANSACTION_TYPE='Deposit'
+        AND ACNUMBER=ANO
+        GROUP BY ACNUMBER;
+    SELECT OPENING_BALANCE INTO ob FROM ACCOUNT WHERE ACNUMBER=ANO;
+    B:=OB+D-W;
+END;
+
+
+
+	ResourceBundle rb = ResourceBundle.getBundle("db");
+		String driver, url, username, password;
+		driver=rb.getString("driver");
+		url=rb.getString("url");
+		username=rb.getString("username");
+		password=rb.getString("password");
+		
+		Class.forName(driver);
+		Connection con = DriverManager.getConnection(url,username,password);
+		Scanner sc=new Scanner(System.in);
+		System.out.println("Enter the acnumber:");
+		String acnumber=sc.next();
+		CallableStatement st = con.prepareCall("{ call PRCTASK1(?,?,?,?)}");
+		st.setString(1, acnumber);
+		st.registerOutParameter(2, java.sql.Types.NUMERIC);
+		st.registerOutParameter(3, java.sql.Types.NUMERIC);
+		st.registerOutParameter(4, java.sql.Types.NUMERIC);
+		st.execute();
+		int w,d,b;
+		w=st.getInt(2);
+		d=st.getInt(3);
+		b=st.getInt(4);
+		System.out.printf("Total withdrawal: %d, deposits: %d and the balance:%d for acnumber:%s\n",w,d,b,acnumber);
+---------------------------------------------------------------------------
+
+
+hOW to call a function from jdbc program?
+	CallableStatement st = con.prepareCall("{ ? call FNTASK1(?)}");
+		st.registerOutParameter(1, datatype)
+
+
+
+Task:
+	create a function that accepts acnumber as input and returns account balance as output
+
+	call this function from a java code.
+
+
+
+CREATE OR REPLACE FUNCTION FNTASK1(ANO VARCHAR2)
+RETURN NUMBER
+AS
+    W INT;
+    D INT;
+    B INT;
+BEGIN 
+    PRCTASK1(ANO, W,D,B);
+    RETURN B;
+END;
+
+
+		ResourceBundle rb = ResourceBundle.getBundle("db");
+		String driver, url, username, password;
+		driver=rb.getString("driver");
+		url=rb.getString("url");
+		username=rb.getString("username");
+		password=rb.getString("password");
+		
+		Class.forName(driver);
+		Connection con = DriverManager.getConnection(url,username,password);
+		Scanner sc=new Scanner(System.in);
+		System.out.println("Enter the acnumber:");
+		String acnumber=sc.next();
+		CallableStatement st = con.prepareCall("{?= call FNTASK1(?)}");
+		st.registerOutParameter(1, java.sql.Types.NUMERIC);
+		st.setString(2, acnumber);
+		st.execute();
+		int balance=st.getInt(1);
+		System.out.printf("The acnumber %s has a balance of Rs. %d/-",acnumber, balance);
+
+----------------------------------------------------------------------
+					Batches
+					-------
+
+What are batches?
+	multiple sql statements can be executed as a Batch
+	We are sending one request to server. That one request is a batch of multiple statements
+
+	Hence, it reduces the network traffic. 
+	Instead of sending multiple requests to the server, we send 1 request containing
+	multiple statements.
+
+	This is what Batch processing.
+
+	How to do that in JDBC?
+		Remember Batch is a set of statements together executed as a single request.
+		But it is not transaction. We learn transactions in next chapter.
+
+		Batch does not guarantee ATOMICITY. There is a risk that 
+		when the statements are executed in a Batch, they may fail in between 			
+		and leave some statements as completed and some as not completed
+
+
+
+		ResourceBundle rb = ResourceBundle.getBundle("db");
+		String driver, url, username, password;
+		driver=rb.getString("driver");
+		url=rb.getString("url");
+		username=rb.getString("username");
+		password=rb.getString("password");
+		
+		Class.forName(driver);
+		Connection con = DriverManager.getConnection(url,username,password);
+
+		Statement st = con.createStatement();
+		st.addBatch("INSERT INTO Branch VALUES ('B00015','abcd','efgh')");
+		st.addBatch("UPDATE Branch SET bname='Main Branch', BCITY='Pune' WHERE bid='B00011'");
+		
+		int[] nos = st.executeBatch();
+		System.out.println(Arrays.toString(nos));
+		con.close();
+
+---------------------------------------------------------------------
+Transactions:
+-------------
+	what is a transaction?
+		a transaction is a set of statements executed as a single logical unit. 
+		and a transaction should have 4 properties
+			Atomicity
+			Consistency
+			Isolation
+			Durability
+	If you call an action as a transaction, then it should be ACID
+	
+Atomicity:
+----------
+	cannot break into sub units
+	ALL otherwise NONE
+	All statements in the transaction should be completed. Or none of the statements are effective. 
+	
+	The transaction should leave the data in a state before the transaction begins. OR all the statements are completed to get in effect.
+
+	There are only 2 states. Completed done. or nothing happened.
+
+	You are booking a redbus ticket. while the payment is processing, there is a network failure. 
+	i) your a/c is debited and you have got an sms from bank
+	ii) ticket is not generated as the transaction is failed.
+
+	You would not agree this state of transaction.
+	Either 
+		Failure means:	a/c not debited. ticket not generated (this allows us to retry)
+		Success means:	a/c debited. ticket generated
+
+Consistency:
+-----------
+	The transaction should leave the database in a consistent state irrespective of failure or success.
+	
+Isolation:
+----------
+	Locking. The data which is being modified by a transaction is locked so that
+	other transactions will wait and see only the committed/rolledback data
+
+Durability:
+-----------
+	Logging
+
+	The transaction will use the log entries to commit or rollback
+	any error or disturbance happened will cause rollback only. That rollback needs the log entries to remember 		to revert the changes made by the transaction.
+
+This is how a transaction differs from a Batch. Batch executes multiple statements as a unit but it is not ACID
+
+------------------------------------------
+Transactions in Java JDBC?
+	Every DML statement is a transaction itself.	
+	Suppose we do an update or delete, it may affect multiple rows. Either all rows (based on condition) are affected or none of the required rows are affected.
+	In java, 
+		connection has an "autocommit" property. by default it is set to true.
+	Thats why every dml statement is committed when successful. Rolledback when unsuccessful.
+
+	In order to keep the commit/rollback option in our hand, we need to set auto commit to false.
+
+ex:
+	update the bname and bcity for a particular bid,
+	ask the user to confirm the changes to be saved or rollback.
+
+ResourceBundle rb = ResourceBundle.getBundle("db");
+		String driver, url, username, password;
+		driver=rb.getString("driver");
+		url=rb.getString("url");
+		username=rb.getString("username");
+		password=rb.getString("password");
+		
+		Class.forName(driver);
+		Connection con = DriverManager.getConnection(url,username,password);
+
+		Scanner sc=new Scanner(System.in);
+		System.out.println("Enter the bid:");
+		String bid, bname, bcity;
+		bid=sc.nextLine();
+		System.out.println("Bname:");
+		bname=sc.nextLine();
+		System.out.println("Bcity:");
+		bcity=sc.nextLine();
+		con.setAutoCommit(false);		//
+		PreparedStatement st = con.prepareStatement("UPDATE Branch SET bname=?, bcity=? WHERE bid=?");
+		st.setString(1, bname);
+		st.setString(2, bcity);
+		st.setString(3, bid);
+		int no=st.executeUpdate();
+		System.out.println(no+" row(s) affected");
+		System.out.println("Do you want to save changes?(y/n)");
+		String choice=sc.next();
+		if(choice.equalsIgnoreCase("y"))
+			4();
+		else
+			con.rollback();
+		con.close();
+		
+
+
+----------------------------------------
+
+Task:
+	Create an explicit transaction that modifies the city of customer.
+	Ask the user to confirm (y/n).
+	When the transaction is waiting for the user to confirm,
+	Try to update the same record in sql developer.
+	
+	Check if the transaction is waiting for the lock to be released.
+
+----------------------------------------
+Concurrency issues:
+	Lost update
+	Dirty reads (discussed earlier, in the “Locking” section)
+	Nonrepeatable reads
+	Phantoms
+
+
+	These are the problems when multiple transactions run simultaneously
+
+Dirty read:	(root cause:	the transaction uses READ UNCOMMITTED isolation level)
+	When a transactionA reads uncomitted data of another transactionB, there is a risk that that another transactionB may rollback.
+
+	Solution:
+		The transaction should use ISOLATION LEVEL to "Read Committed" Isolation Level. Means, the transaction should read only the committed data. 
+	THis will solve the "dirty read" problem. However "panthom read" occurs.
+
+Panthom Read: (root cause:	the transactionuses READ COMMITTED isolation level)
+	When a transactionA reads set of rows, a transactionB insert new records inside that range of rows.
+	
+	Solution:
+		enforce range lock using ISOLATION LEVEL	REPEATABLE READ.
+	This will solve "panthom read" problem. 	
+
+
+
+
+
+READ UNCOMMITTED allows dirty reads, nonrepeatable reads, and phantoms.
+READ COMMITED allows nonrepeatable reads, and phantoms.
+REPEATABLE READ does not prevent another transaction from inserting new rows, which are included in subsequent reads, so phantoms can appear.
+SERIALIZABLE  it prevents all four concurrency problems
+
+to solve concurrency issues, we use ISOLATION LEVELS
+READ UNCOMMITTED	(Worst)
+READ COMMITED
+REPEATABLE READ
+SERIALIZABLE
+
+
+Get metadata from the connection
+
+find what is the default isolation level supported by our connection.
+	DatabaseMetaData dbmd=con.getMetaData();
+
+
+TRANSACTION_NONE = 0
+TRANSACTION_READ_COMMITTED = 2
+TRANSACTION_READ_UNCOMMITTED = 1			all problems happen	dirty, panthom, non repeatable
+TRANSACTION_REPEATABLE_READ = 4
+TRANSACTION_SERIALIZABLE = 8
+
+
+
+		Connection con = DriverManager.getConnection(url,username,password);
+//		con.setAutoCommit(false);
+		DatabaseMetaData dbmd = con.getMetaData();
+		int ilevel=dbmd.getDefaultTransactionIsolation();
+		System.out.println("This connection uses isolation level: "+ilevel);
+		con.setTransactionIsolation(8);
+		//ilevel=dbmd.getDefaultTransactionIsolation();
+		ilevel=con.getTransactionIsolation();
+		System.out.println("This connection uses isolation level: "+ilevel);
+
+
+
+for read committed isolation level,
+	we have already seen an example. 
+	When a transaction does not commit or rollback, the transaction is live. The other transaction is waiting for the transaction to commit or rollback.	however, select queries are allowed and they see the last committed version of data.
+
+	Read uncommitted was not supported by our connection with oracle
+--------but-------
+	MySql connection supports isolation level 1
+	isolation level 1 means READ UNCOMMITTED.
+	When java transaction is live, waiting for commit or rollback based on user input,
+		mysql transaction on the same row is committed successfully.
+
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.Statement;
+import java.util.ResourceBundle;
+import java.util.Scanner;
+
+public class Main_Isolation {
+
+	public static void main(String[] args) throws Exception{
+		ResourceBundle rb = ResourceBundle.getBundle("db2");
+		String driver, url, username, password;
+		driver=rb.getString("driver");
+		url=rb.getString("url");
+		username=rb.getString("username");
+		password=rb.getString("password");
+		
+		Class.forName(driver);
+		Connection con = DriverManager.getConnection(url,username,password);
+		con.setAutoCommit(false);
+		DatabaseMetaData dbmd = con.getMetaData();
+		int ilevel=dbmd.getDefaultTransactionIsolation();
+		System.out.println("This connection uses isolation level: "+ilevel);
+		con.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+		//ilevel=dbmd.getDefaultTransactionIsolation();
+		ilevel=con.getTransactionIsolation();
+		System.out.println("This connection uses isolation level: "+ilevel);
+		Statement st = con.createStatement();
+		st.executeUpdate("UPDATE Branch SET bname='xyz', bcity='EFGH' WHERE bid='B00015'");
+		Scanner sc=new Scanner(System.in);
+		System.out.println("Do you want to commit? (y/n)");
+		String choice=sc.next();
+		if(choice.equalsIgnoreCase("y"))
+			con.commit();
+		else
+			con.rollback();
+		con.close();
+	}
+
+}
+
+
+------------------------
+
+Task:
+	Identify the isolation levels supported by a connection with Oracle
+	Identify the isolation levels supported by a connection with MySql
+
+	Set different isolation levels and check the behaviour of transaction.
+	Ex:
+		set isolation level of Mysql connection to 1	(READ_UNCOMMITTED)
+
+	Now when you do a transaction from java and waiting for commit or rollback,
+		see other transactions are able to see your uncommitted data.
+
+
+		ResourceBundle rb = ResourceBundle.getBundle("db");
+		String driver, url, username, password;
+		driver=rb.getString("driver");
+		url=rb.getString("url");
+		username=rb.getString("username");
+		password=rb.getString("password");
+		
+		Class.forName(driver);
+		Connection con = DriverManager.getConnection(url,username,password);
+		DatabaseMetaData dbmd = con.getMetaData();
+		System.out.println(dbmd.getDatabaseProductName());
+		System.out.println(dbmd.getDatabaseProductVersion());
+		System.out.println(dbmd.getDriverName());
+		System.out.println(dbmd.getDriverVersion());
+		
+
+Activity:
+	Identify the useful methods of DatabaseMetaData
+		dbmd.getDatabaseProductName()
+		dbmd.getDatabaseProductVersion()
+		dbmd.getDriverName()
+		dbmd.getDriverVersion()
+		
